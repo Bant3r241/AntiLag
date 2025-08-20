@@ -35,7 +35,7 @@ local statusLabel = Instance.new("TextLabel", mainFrame)
 statusLabel.Size = UDim2.new(1, 0, 0, 20)
 statusLabel.Position = UDim2.new(0, 0, 0, 35)
 statusLabel.BackgroundTransparency = 1
-statusLabel.Text = "🔴 OFF"
+statusLabel.Text = "🟢 ON"
 statusLabel.Font = Enum.Font.Gotham
 statusLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
 statusLabel.TextSize = 16
@@ -48,7 +48,7 @@ toggleButton.Position = UDim2.new(0.075, 0, 0.55, 0)
 toggleButton.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
 toggleButton.TextColor3 = Color3.fromRGB(255, 255, 255)
 toggleButton.Font = Enum.Font.GothamBold
-toggleButton.Text = "Turn ON"
+toggleButton.Text = "Turn OFF"
 toggleButton.TextSize = 18
 toggleButton.BorderSizePixel = 0
 toggleButton.AutoButtonColor = true
@@ -70,7 +70,7 @@ keybindLabel.TextSize = 14
 keybindLabel.TextXAlignment = Enum.TextXAlignment.Center
 
 -- Anti-Lag and FPS Boost Logic
-local antiLagEnabled = false
+local antiLagEnabled = true  -- Turn ON by default
 
 local function removeLagParts()
     for _, obj in ipairs(workspace:GetChildren()) do
@@ -93,28 +93,24 @@ local function removeLagParts()
 end
 
 local function boostFPS()
-    -- Lower graphics settings to boost FPS
     pcall(function()
-        -- Set graphics quality level to low (0 = low, 1 = medium, 2 = high, 3 = very high)
         if UserSettings().GameSettings then
             UserSettings().GameSettings.SavedQualityLevel = Enum.SavedQualitySetting.Level1
             UserSettings().GameSettings.GraphicsQualityLevel = 1
         end
-        -- Disable shadows
         Lighting.GlobalShadows = false
-        -- Reduce brightness and contrast to reduce strain
         Lighting.Brightness = 1
         Lighting.OutdoorAmbient = Color3.fromRGB(128,128,128)
         Lighting.FogEnd = 1000
-        -- Disable blur and other post effects if any
+
         for _, effect in ipairs(Lighting:GetChildren()) do
             if effect:IsA("BlurEffect") or effect:IsA("SunRaysEffect") or effect:IsA("ColorCorrectionEffect") or effect:IsA("BloomEffect") then
                 effect.Enabled = false
             end
         end
-        -- Optional: limit FPS cap if supported (some Roblox clients allow this)
-        if RunService:Set3dRenderingEnabled then
-            RunService:Set3dRenderingEnabled(true) -- Keep rendering on
+
+        if RunService.Set3dRenderingEnabled then
+            RunService:Set3dRenderingEnabled(true)
         end
     end)
 end
@@ -137,7 +133,7 @@ local function toggleAntiLag()
         boostFPS()
     else
         print("Anti-Lagging Stopped.")
-        -- Optional: You can add code here to revert changes if desired
+        -- Optional: add revert FPS changes here
     end
 end
 
@@ -158,4 +154,7 @@ task.spawn(function()
     end
 end)
 
+-- Initialize UI and start boost immediately
 updateUI()
+print("Anti-Lagging Started: Blocking Laggers and boosting FPS...")
+boostFPS()
