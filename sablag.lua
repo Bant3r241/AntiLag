@@ -19,6 +19,11 @@ mainFrame.Parent = screenGui
 mainFrame.Active = true
 mainFrame.Draggable = true
 
+-- Rounded corners for mainFrame
+local mainUICorner = Instance.new("UICorner")
+mainUICorner.CornerRadius = UDim.new(0, 12)  -- You can adjust the radius here
+mainUICorner.Parent = mainFrame
+
 -- Title Label
 local titleLabel = Instance.new("TextLabel", mainFrame)
 titleLabel.Size = UDim2.new(1, 0, 0, 30)
