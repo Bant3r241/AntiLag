@@ -1,92 +1,117 @@
--- LocalScript for Anti-Lag GUI with Console Output
 local player = game.Players.LocalPlayer
 local playerGui = player:WaitForChild("PlayerGui")
 
--- Create a ScreenGui
-local screenGui = Instance.new("ScreenGui")
-screenGui.Parent = playerGui
-screenGui.Name = "AntiLaggerGui"
+-- Create GUI
+local screenGui = Instance.new("ScreenGui", playerGui)
+screenGui.Name = "AntiLaggerGUI"
+screenGui.ResetOnSpawn = false
 
--- Create a Main Frame for the GUI
+-- Main Frame
 local mainFrame = Instance.new("Frame")
-mainFrame.Size = UDim2.new(0, 300, 0, 200)
-mainFrame.Position = UDim2.new(0.5, -150, 0.5, -100)
-mainFrame.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
-mainFrame.BackgroundTransparency = 0.5
+mainFrame.Size = UDim2.new(0, 280, 0, 150)
+mainFrame.Position = UDim2.new(0.02, 0, 0.4, 0)
+mainFrame.BackgroundColor3 = Color3.fromRGB(25, 25, 25)
 mainFrame.BorderSizePixel = 0
 mainFrame.Parent = screenGui
+mainFrame.ClipsDescendants = true
+mainFrame.Active = true
+mainFrame.Draggable = true
 
--- Add a Title Label
-local titleLabel = Instance.new("TextLabel")
-titleLabel.Size = UDim2.new(1, 0, 0.2, 0)
+-- Title Label
+local titleLabel = Instance.new("TextLabel", mainFrame)
+titleLabel.Size = UDim2.new(1, 0, 0, 30)
 titleLabel.Position = UDim2.new(0, 0, 0, 0)
-titleLabel.Text = "AntiLagger"
-titleLabel.TextSize = 30
-titleLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
-titleLabel.Font = Enum.Font.GothamBold
-titleLabel.TextStrokeTransparency = 0.8
 titleLabel.BackgroundTransparency = 1
-titleLabel.Parent = mainFrame
+titleLabel.Text = "Anti Lagger"
+titleLabel.Font = Enum.Font.GothamBold
+titleLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+titleLabel.TextSize = 18
+titleLabel.TextXAlignment = Enum.TextXAlignment.Center
 
--- Create a Toggle Button for Anti-Lag
-local toggleButton = Instance.new("TextButton")
-toggleButton.Size = UDim2.new(0, 200, 0, 50)
-toggleButton.Position = UDim2.new(0.5, -100, 0.5, -25)  -- Center it in the middle of the frame
-toggleButton.Text = "OFF"
-toggleButton.TextSize = 24
-toggleButton.Font = Enum.Font.Gotham
+-- Status Indicator (Dot + Text)
+local statusLabel = Instance.new("TextLabel", mainFrame)
+statusLabel.Size = UDim2.new(1, 0, 0, 20)
+statusLabel.Position = UDim2.new(0, 0, 0, 35)
+statusLabel.BackgroundTransparency = 1
+statusLabel.Text = "🔴 OFF"
+statusLabel.Font = Enum.Font.Gotham
+statusLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+statusLabel.TextSize = 16
+statusLabel.TextXAlignment = Enum.TextXAlignment.Left
+statusLabel.TextWrapped = true
+statusLabel.TextXAlignment = Enum.TextXAlignment.Center
+
+-- Toggle Button
+local toggleButton = Instance.new("TextButton", mainFrame)
+toggleButton.Size = UDim2.new(0.85, 0, 0, 40)
+toggleButton.Position = UDim2.new(0.075, 0, 0.55, 0)
+toggleButton.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
 toggleButton.TextColor3 = Color3.fromRGB(255, 255, 255)
-toggleButton.BackgroundColor3 = Color3.fromRGB(255, 0, 0)
-toggleButton.BackgroundTransparency = 0.1
+toggleButton.Font = Enum.Font.GothamBold
+toggleButton.Text = "Turn ON"
+toggleButton.TextSize = 18
 toggleButton.BorderSizePixel = 0
-toggleButton.Parent = mainFrame
+toggleButton.AutoButtonColor = true
 
--- Boolean to track toggle state and anti-lag status
-local isOn = false
+-- Keybind Label
+local keybindLabel = Instance.new("TextLabel", mainFrame)
+keybindLabel.Size = UDim2.new(1, 0, 0, 20)
+keybindLabel.Position = UDim2.new(0, 0, 1, -20)
+keybindLabel.BackgroundTransparency = 1
+keybindLabel.Text = "Press F to turn ON/OFF"
+keybindLabel.Font = Enum.Font.Gotham
+keybindLabel.TextColor3 = Color3.fromRGB(180, 180, 180)
+keybindLabel.TextSize = 14
+keybindLabel.TextXAlignment = Enum.TextXAlignment.Center
+
+-- Logic
 local antiLagEnabled = false
 
--- Function to remove unwanted parts (anti-lag feature)
-local function removeUnwantedParts()
-    for _, object in pairs(workspace:GetChildren()) do
-        if object:IsA("Part") and object.Name == "UnwantedPart" then
-            object:Destroy()
+local function removeLagParts()
+    for _, obj in ipairs(workspace:GetChildren()) do
+        if obj:IsA("Part") and obj.Name == "UnwantedPart" then
+            obj:Destroy()
         end
     end
 end
 
--- Function to toggle button text and anti-lag state
-local function toggle()
-    isOn = not isOn
-    if isOn then
-        toggleButton.Text = "ON"
-        toggleButton.BackgroundColor3 = Color3.fromRGB(0, 255, 0)  -- Green background for ON state
-        antiLagEnabled = true
-        print("Anti-Lagging Started: Blocking Laggers...")  -- Console message when anti-lag starts
+local function updateUI()
+    if antiLagEnabled then
+        statusLabel.Text = "🟢 ON"
+        toggleButton.Text = "Turn OFF"
     else
-        toggleButton.Text = "OFF"
-        toggleButton.BackgroundColor3 = Color3.fromRGB(255, 0, 0)  -- Red background for OFF state
-        antiLagEnabled = false
-        print("Anti-Lagging Stopped: Lag Blocker Disabled.")  -- Console message when anti-lag stops
+        statusLabel.Text = "🔴 OFF"
+        toggleButton.Text = "Turn ON"
     end
 end
 
--- Function to manage the anti-lag while the button is "ON"
-local function antiLagLoop()
-    while antiLagEnabled do
-        removeUnwantedParts()  -- Call the anti-lag function to remove parts
-        wait(0.5)  -- Check every 0.5 seconds to reduce performance impact
-    end
-end
-
--- Connect the toggle function to the button click
-toggleButton.MouseButton1Click:Connect(toggle)
-
--- Start anti-lag loop
-spawn(function()
-    while true do
-        if antiLagEnabled then
-            antiLagLoop()
-        end
-        wait(0.1)  -- Ensure loop runs consistently but doesn't overload the system
+toggleButton.MouseButton1Click:Connect(function()
+    antiLagEnabled = not antiLagEnabled
+    updateUI()
+    if antiLagEnabled then
+        print("Anti-Lagging Started: Blocking Laggers...")
+    else
+        print("Anti-Lagging Stopped.")
     end
 end)
+
+-- Keybind Support (F to toggle)
+game:GetService("UserInputService").InputBegan:Connect(function(input, gameProcessed)
+    if gameProcessed then return end
+    if input.KeyCode == Enum.KeyCode.F then
+        toggleButton:Activate()
+    end
+end)
+
+-- Anti-Lag Loop
+task.spawn(function()
+    while true do
+        if antiLagEnabled then
+            removeLagParts()
+        end
+        task.wait(0.5)
+    end
+end)
+
+-- Initial UI setup
+updateUI()
