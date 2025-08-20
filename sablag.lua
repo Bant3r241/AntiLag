@@ -1,6 +1,8 @@
 local player = game.Players.LocalPlayer
 local playerGui = player:WaitForChild("PlayerGui")
 local UserInputService = game:GetService("UserInputService")
+local Lighting = game:GetService("Lighting")
+local RunService = game:GetService("RunService")
 
 -- Create GUI
 local screenGui = Instance.new("ScreenGui", playerGui)
@@ -9,17 +11,13 @@ screenGui.ResetOnSpawn = false
 
 -- Main Frame
 local mainFrame = Instance.new("Frame")
-mainFrame.Size = UDim2.new(0, 280, 0, 150)
+mainFrame.Size = UDim2.new(0, 280, 0, 170)
 mainFrame.Position = UDim2.new(0.02, 0, 0.4, 0)
 mainFrame.BackgroundColor3 = Color3.fromRGB(25, 25, 25)
 mainFrame.BorderSizePixel = 0
 mainFrame.Parent = screenGui
 mainFrame.Active = true
-
--- Rounded corners for main frame
-local mainFrameCorner = Instance.new("UICorner")
-mainFrameCorner.CornerRadius = UDim.new(0, 12) -- Adjust radius as needed
-mainFrameCorner.Parent = mainFrame
+mainFrame.Draggable = true
 
 -- Title Label
 local titleLabel = Instance.new("TextLabel", mainFrame)
@@ -71,15 +69,54 @@ keybindLabel.TextColor3 = Color3.fromRGB(180, 180, 180)
 keybindLabel.TextSize = 14
 keybindLabel.TextXAlignment = Enum.TextXAlignment.Center
 
--- Anti-Lag Logic
+-- Anti-Lag and FPS Boost Logic
 local antiLagEnabled = false
 
 local function removeLagParts()
     for _, obj in ipairs(workspace:GetChildren()) do
-        if obj:IsA("Part") and obj.Name == "UnwantedPart" then
-            obj:Destroy()
+        if obj:IsA("Part") then
+            if obj.Name == "UnwantedPart" then
+                obj:Destroy()
+            elseif obj.Size.X > 100 or obj.Size.Y > 100 or obj.Size.Z > 100 then
+                obj:Destroy()
+            elseif obj.Transparency > 0.95 and obj.Anchored == false then
+                obj:Destroy()
+            end
+        elseif obj:IsA("ParticleEmitter") or obj:IsA("Light") then
+            obj.Enabled = false
+        elseif obj:IsA("Decal") then
+            if obj.Transparency < 0.1 then
+                obj:Destroy()
+            end
         end
     end
+end
+
+local function boostFPS()
+    -- Lower graphics settings to boost FPS
+    pcall(function()
+        -- Set graphics quality level to low (0 = low, 1 = medium, 2 = high, 3 = very high)
+        if UserSettings().GameSettings then
+            UserSettings().GameSettings.SavedQualityLevel = Enum.SavedQualitySetting.Level1
+            UserSettings().GameSettings.GraphicsQualityLevel = 1
+        end
+        -- Disable shadows
+        Lighting.GlobalShadows = false
+        -- Reduce brightness and contrast to reduce strain
+        Lighting.Brightness = 1
+        Lighting.OutdoorAmbient = Color3.fromRGB(128,128,128)
+        Lighting.FogEnd = 1000
+        -- Disable blur and other post effects if any
+        for _, effect in ipairs(Lighting:GetChildren()) do
+            if effect:IsA("BlurEffect") or effect:IsA("SunRaysEffect") or effect:IsA("ColorCorrectionEffect") or effect:IsA("BloomEffect") then
+                effect.Enabled = false
+            end
+        end
+        -- Optional: limit FPS cap if supported (some Roblox clients allow this)
+        if RunService:Set3dRenderingEnabled then
+            RunService:Set3dRenderingEnabled(true) -- Keep rendering on
+        end
+    end)
 end
 
 local function updateUI()
@@ -92,28 +129,26 @@ local function updateUI()
     end
 end
 
--- Toggle Function
 local function toggleAntiLag()
     antiLagEnabled = not antiLagEnabled
     updateUI()
     if antiLagEnabled then
-        print("Anti-Lagging Started: Blocking Laggers...")
+        print("Anti-Lagging Started: Blocking Laggers and boosting FPS...")
+        boostFPS()
     else
         print("Anti-Lagging Stopped.")
+        -- Optional: You can add code here to revert changes if desired
     end
 end
 
--- Button Click
 toggleButton.MouseButton1Click:Connect(toggleAntiLag)
 
--- Keybind (F)
 UserInputService.InputBegan:Connect(function(input, gameProcessed)
     if not gameProcessed and input.KeyCode == Enum.KeyCode.F then
         toggleAntiLag()
     end
 end)
 
--- Loop to remove laggy parts
 task.spawn(function()
     while true do
         if antiLagEnabled then
@@ -123,45 +158,4 @@ task.spawn(function()
     end
 end)
 
--- Initialize UI state
 updateUI()
-
--- Dragging logic
-local dragging = false
-local dragInput, dragStart, startPos
-
-local function update(input)
-    local delta = input.Position - dragStart
-    mainFrame.Position = UDim2.new(
-        startPos.X.Scale,
-        startPos.X.Offset + delta.X,
-        startPos.Y.Scale,
-        startPos.Y.Offset + delta.Y
-    )
-end
-
-mainFrame.InputBegan:Connect(function(input)
-    if input.UserInputType == Enum.UserInputType.MouseButton1 then
-        dragging = true
-        dragStart = input.Position
-        startPos = mainFrame.Position
-
-        input.Changed:Connect(function()
-            if input.UserInputState == Enum.UserInputState.End then
-                dragging = false
-            end
-        end)
-    end
-end)
-
-mainFrame.InputChanged:Connect(function(input)
-    if input.UserInputType == Enum.UserInputType.MouseMovement then
-        dragInput = input
-    end
-end)
-
-UserInputService.InputChanged:Connect(function(input)
-    if dragging and input == dragInput then
-        update(input)
-    end
-end)
