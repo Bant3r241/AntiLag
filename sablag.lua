@@ -2,6 +2,7 @@ local player = game.Players.LocalPlayer
 local playerGui = player:WaitForChild("PlayerGui")
 local UserInputService = game:GetService("UserInputService")
 local Lighting = game:GetService("Lighting")
+local RunService = game:GetService("RunService")
 
 -- Create GUI
 local screenGui = Instance.new("ScreenGui", playerGui)
@@ -16,11 +17,12 @@ mainFrame.BackgroundColor3 = Color3.fromRGB(25, 25, 25)
 mainFrame.BorderSizePixel = 0
 mainFrame.Parent = screenGui
 mainFrame.Active = true
+mainFrame.Draggable = true
 
 -- Rounded corners for main frame
-local mainFrameCorner = Instance.new("UICorner")
-mainFrameCorner.CornerRadius = UDim.new(0, 12) -- Adjust radius as needed
-mainFrameCorner.Parent = mainFrame
+local mainUICorner = Instance.new("UICorner")
+mainUICorner.CornerRadius = UDim.new(0, 8)
+mainUICorner.Parent = mainFrame
 
 -- Title Label
 local titleLabel = Instance.new("TextLabel", mainFrame)
@@ -38,7 +40,7 @@ local statusLabel = Instance.new("TextLabel", mainFrame)
 statusLabel.Size = UDim2.new(1, 0, 0, 20)
 statusLabel.Position = UDim2.new(0, 0, 0, 35)
 statusLabel.BackgroundTransparency = 1
-statusLabel.Text = "🔴 OFF"
+statusLabel.Text = "🟢 ON"
 statusLabel.Font = Enum.Font.Gotham
 statusLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
 statusLabel.TextSize = 16
@@ -51,12 +53,11 @@ toggleButton.Position = UDim2.new(0.075, 0, 0.55, 0)
 toggleButton.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
 toggleButton.TextColor3 = Color3.fromRGB(255, 255, 255)
 toggleButton.Font = Enum.Font.GothamBold
-toggleButton.Text = "Turn ON"
+toggleButton.Text = "Turn OFF"
 toggleButton.TextSize = 18
 toggleButton.BorderSizePixel = 0
 toggleButton.AutoButtonColor = true
 
--- Rounded corners for toggle button
 local uicorner = Instance.new("UICorner")
 uicorner.CornerRadius = UDim.new(0, 8)
 uicorner.Parent = toggleButton
@@ -73,37 +74,65 @@ keybindLabel.TextSize = 14
 keybindLabel.TextXAlignment = Enum.TextXAlignment.Center
 
 -- Anti-Lag Logic
-local antiLagEnabled = false
+local antiLagEnabled = true -- ON by default
 
-local function isHugePart(part)
-    local maxSize = 50 -- max allowed size in studs for any dimension
-    return part.Size.X > maxSize or part.Size.Y > maxSize or part.Size.Z > maxSize
+-- Track part spawns with timestamps
+local spawnTracker = {}
+local SPAM_THRESHOLD = 10
+local TIME_WINDOW = 3 -- seconds
+
+-- Helper: clean old timestamps
+local function cleanOldEntries(timestamps)
+    local now = tick()
+    for i = #timestamps, 1, -1 do
+        if now - timestamps[i] > TIME_WINDOW then
+            table.remove(timestamps, i)
+        end
+    end
+end
+
+local function trackPartSpawn(part)
+    if not (part:IsA("Part") or part:IsA("MeshPart") or part:IsA("UnionOperation")) then return end
+
+    local name = part.Name
+    spawnTracker[name] = spawnTracker[name] or {}
+
+    -- Insert current time
+    table.insert(spawnTracker[name], tick())
+    cleanOldEntries(spawnTracker[name])
+
+    -- If over threshold, remove this new part
+    if #spawnTracker[name] > SPAM_THRESHOLD then
+        if part and part.Parent then
+            part:Destroy()
+            print("AntiLag: Removed spam part", name)
+            -- Remove the timestamp for destroyed part since it no longer exists
+            table.remove(spawnTracker[name])
+        end
+    end
 end
 
 local function removeLagParts()
     for _, obj in ipairs(workspace:GetDescendants()) do
-        if obj:IsA("Part") or obj:IsA("MeshPart") or obj:IsA("UnionOperation") then
-            -- Remove huge parts
-            if isHugePart(obj) then
-                obj:Destroy()
-            -- Remove invisible and unanchored parts (often spam)
-            elseif obj.Transparency == 1 and not obj.Anchored then
-                obj:Destroy()
-            -- Remove Neon parts (can cause lag)
-            elseif obj.Material == Enum.Material.Neon then
-                obj:Destroy()
-            end
-        elseif obj:IsA("ParticleEmitter") or obj:IsA("Trail") or obj:IsA("Beam") then
+        if obj:IsA("ParticleEmitter") or obj:IsA("Trail") or obj:IsA("Beam") then
             obj.Enabled = false
         elseif obj:IsA("PointLight") or obj:IsA("SpotLight") or obj:IsA("SurfaceLight") then
             obj.Enabled = false
         elseif obj:IsA("Decal") then
-            -- Remove Decals with low transparency (very visible)
             if obj.Transparency < 0.2 then
                 obj:Destroy()
             end
         elseif obj:IsA("Sound") then
             obj:Stop()
+        end
+    end
+end
+
+local function disablePostProcessing()
+    for _, effectClass in ipairs({"BloomEffect", "BlurEffect", "SunRaysEffect", "ColorCorrectionEffect", "DepthOfFieldEffect"}) do
+        local effect = Lighting:FindFirstChildOfClass(effectClass)
+        if effect then
+            effect.Enabled = false
         end
     end
 end
@@ -118,7 +147,6 @@ local function updateUI()
     end
 end
 
--- Toggle Function
 local function toggleAntiLag()
     antiLagEnabled = not antiLagEnabled
     updateUI()
@@ -139,28 +167,22 @@ UserInputService.InputBegan:Connect(function(input, gameProcessed)
     end
 end)
 
--- FPS Boost function
-local function boostFPS()
-    -- Lower graphics quality (0 is lowest, 10 highest)
-    pcall(function()
-        UserSettings().Rendering.QualityLevel = 1
-    end)
+-- Connect ChildAdded to track new parts spawning
+workspace.ChildAdded:Connect(function(child)
+    if antiLagEnabled then
+        -- Delay a tiny bit to allow part properties to settle
+        task.defer(function()
+            trackPartSpawn(child)
+        end)
+    end
+end)
 
-    -- Turn off shadows
-    Lighting.GlobalShadows = false
-
-    -- Reduce ambient light to lower rendering load
-    Lighting.Ambient = Color3.fromRGB(100, 100, 100)
-    Lighting.OutdoorAmbient = Color3.fromRGB(100, 100, 100)
-end
-
-boostFPS()
-
--- Loop to remove laggy parts
+-- Main anti-lag loop
 task.spawn(function()
     while true do
         if antiLagEnabled then
             removeLagParts()
+            disablePostProcessing()
         end
         task.wait(0.5)
     end
@@ -168,43 +190,3 @@ end)
 
 -- Initialize UI state
 updateUI()
-
--- Dragging logic
-local dragging = false
-local dragInput, dragStart, startPos
-
-local function update(input)
-    local delta = input.Position - dragStart
-    mainFrame.Position = UDim2.new(
-        startPos.X.Scale,
-        startPos.X.Offset + delta.X,
-        startPos.Y.Scale,
-        startPos.Y.Offset + delta.Y
-    )
-end
-
-mainFrame.InputBegan:Connect(function(input)
-    if input.UserInputType == Enum.UserInputType.MouseButton1 then
-        dragging = true
-        dragStart = input.Position
-        startPos = mainFrame.Position
-
-        input.Changed:Connect(function()
-            if input.UserInputState == Enum.UserInputState.End then
-                dragging = false
-            end
-        end)
-    end
-end)
-
-mainFrame.InputChanged:Connect(function(input)
-    if input.UserInputType == Enum.UserInputType.MouseMovement then
-        dragInput = input
-    end
-end)
-
-UserInputService.InputChanged:Connect(function(input)
-    if dragging and input == dragInput then
-        update(input)
-    end
-end)
