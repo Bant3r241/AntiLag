@@ -3,6 +3,15 @@ local playerGui = player:WaitForChild("PlayerGui")
 local UserInputService = game:GetService("UserInputService")
 local Lighting = game:GetService("Lighting")
 local RunService = game:GetService("RunService")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local MAX_PARTS = 20  -- Max number of parts a player can spawn at once
+local SPAM_THRESHOLD = 10  -- Max remote event call rate
+local TIME_WINDOW = 3  -- seconds for spam check
+local COOLDOWN_TIME = 1  -- 1 second cooldown per player on RemoteEvent
+
+-- Rate-limit tracking for RemoteEvents
+local eventCooldowns = {}
+local playerPartCount = {}
 
 -- Create GUI
 local screenGui = Instance.new("ScreenGui", playerGui)
@@ -76,12 +85,7 @@ keybindLabel.TextXAlignment = Enum.TextXAlignment.Center
 -- Anti-Lag Logic
 local antiLagEnabled = true -- ON by default
 
--- Track part spawns with timestamps
-local spawnTracker = {}
-local SPAM_THRESHOLD = 10
-local TIME_WINDOW = 3 -- seconds
-
--- Helper: clean old timestamps
+-- Helper: clean old timestamps for part spawns
 local function cleanOldEntries(timestamps)
     local now = tick()
     for i = #timestamps, 1, -1 do
@@ -95,23 +99,38 @@ local function trackPartSpawn(part)
     if not (part:IsA("Part") or part:IsA("MeshPart") or part:IsA("UnionOperation")) then return end
 
     local name = part.Name
-    spawnTracker[name] = spawnTracker[name] or {}
+    playerPartCount[name] = playerPartCount[name] or {}
 
     -- Insert current time
-    table.insert(spawnTracker[name], tick())
-    cleanOldEntries(spawnTracker[name])
+    table.insert(playerPartCount[name], tick())
+    cleanOldEntries(playerPartCount[name])
 
     -- If over threshold, remove this new part
-    if #spawnTracker[name] > SPAM_THRESHOLD then
+    if #playerPartCount[name] > MAX_PARTS then
         if part and part.Parent then
             part:Destroy()
             print("AntiLag: Removed spam part", name)
             -- Remove the timestamp for destroyed part since it no longer exists
-            table.remove(spawnTracker[name])
+            table.remove(playerPartCount[name])
         end
     end
 end
 
+-- Rate-limit RemoteEvent
+ReplicatedStorage.MyRemoteEvent.OnServerEvent:Connect(function(player, ...)
+    local currentTime = tick()
+    
+    if eventCooldowns[player.UserId] and currentTime - eventCooldowns[player.UserId] < COOLDOWN_TIME then
+        print(player.Name .. " is trying to spam the event!")
+        return  -- Block the event if it's too soon since the last trigger
+    end
+    
+    -- Allow event processing here
+    eventCooldowns[player.UserId] = currentTime
+    print(player.Name .. " triggered the event successfully!")
+end)
+
+-- Anti-lag functions to clean up parts
 local function removeLagParts()
     for _, obj in ipairs(workspace:GetDescendants()) do
         if obj:IsA("ParticleEmitter") or obj:IsA("Trail") or obj:IsA("Beam") then
